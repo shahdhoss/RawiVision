@@ -18,3 +18,11 @@ class MinioStorageClient:
 
     def remove_object_from_bucket(self, object, bucket_name, object_name):
         self.client.remove_object(bucket_name=bucket_name, object_name=object_name)
+    
+    def get_objects_from_bucket(self, bucket_name, prefix):
+        result=[]
+        objects = self.client.list_objects(bucket_name=bucket_name, prefix=prefix, recursive=True)
+        for obj in objects:
+            image = self.client.get_object(bucket_name=bucket_name, object_name=obj.object_name)
+            result.append(image.read())
+        return result

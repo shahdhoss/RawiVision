@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from minio.error import S3Error
 import uuid
 from ..exceptions import EmployeeNotFound
+from ..celery_tasks.embedding import create_embedding_task
 
 class EmployeeService:
     def __init__ (self, repository: EmployeeRepository):
@@ -13,7 +14,6 @@ class EmployeeService:
         self.object_storage = MinioStorageClient()
         self.bucket_name = "employee-pictures"
     
-    # saga orchestration is used to ensure both the metadata of the employee and their pictures are uploaded to the system
     async def create_employee(self, employee: EmployeeCreate, employee_pictures: list[UploadFile]):
         uploaded_files=[]
         try: 
@@ -21,13 +21,11 @@ class EmployeeService:
             for picture in employee_pictures:
                 await self.object_storage.add_object_to_bucket(picture, bucket_name= self.bucket_name, object_name=f"{new_employee.id}/{picture.filename}")
                 uploaded_files.append(picture)
-           
-            await self.repository.db.commit()
-            await self.repository.db.refresh(new_employee)
+            employee = EmployeeUpdate(first_name=new_employee.first_name, last_name=new_employee.last_name, role=new_employee.role)
+            # need to figure out a workaround if the celery task fails
+            create_embedding_task.delay(self.bucket_name, new_employee.id, employee.model_dump())
             return new_employee
-
         except (SQLAlchemyError, S3Error, Exception) as error:
-            self.repository.db.rollback()
             for obj in uploaded_files:    # maybe i should wrap this in a try except as well?
                 self.object_storage.remove_object_from_bucket(obj, self.bucket_name)
             raise error
@@ -55,10 +53,7 @@ class EmployeeService:
             employee = await self.repository.read_employee_by_id(id)
             if not employee:
                 raise EmployeeNotFound(f"employee with {id} not found")
-            await self.repository.delete_employee(employee=employee)
-            await self.repository.db.commit()
         except (SQLAlchemyError) as error:
-            self.repository.db.rollback()
             raise error  
         except (Exception) as exception_error:
             raise exception_error
