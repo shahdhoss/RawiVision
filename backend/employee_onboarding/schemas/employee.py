@@ -17,6 +17,7 @@ class EmployeeResponse(EmployeeBase):
     date_created: datetime
     embedding: list[float] | None = None
     embedding_status : str
+    images: list[str] | None = None
 
 class EmployeeUpdate(BaseModel):
     first_name: str | None = None

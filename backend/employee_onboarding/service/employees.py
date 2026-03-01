@@ -7,12 +7,15 @@ from minio.error import S3Error
 import uuid
 from ..exceptions import EmployeeNotFound
 from ..celery_tasks.embedding import create_embedding_task
+from .employee_images import EmployeeImagesService
+from ..schemas.employee import EmployeeResponse
 
 class EmployeeService:
-    def __init__ (self, repository: EmployeeRepository, object_storage:MinioStorageClient): # constructor dependency injection
+    def __init__ (self, repository: EmployeeRepository, object_storage:MinioStorageClient, employee_image_service: EmployeeImagesService): # constructor dependency injection
         self.repository = repository
         self.bucket_name = "employee-pictures"
         self.object_storage = object_storage
+        self.employee_image_service = employee_image_service
     
     async def create_employee(self, employee: EmployeeCreate, employee_pictures: list[UploadFile]):
         uploaded_files=[]
@@ -39,10 +42,12 @@ class EmployeeService:
 
     async def get_employee_by_id(self, id: uuid.UUID):
         try:
-            employee = await self.repository.read_employee_by_id(id)
-            if not employee:
+            employee_data = await self.repository.read_employee_by_id(id)
+            employee_images = self.employee_image_service.get_employee_images(employee_id=id)
+            employee_response = EmployeeResponse(id=employee_data.id, date_created=employee_data.date_created, first_name= employee_data.first_name, last_name= employee_data.last_name, role= employee_data.role, embedding= employee_data.embedding, embedding_status= employee_data.embedding_status, images=employee_images["image_urls"])
+            if not employee_data:
                 raise EmployeeNotFound("No employees found")
-            return employee
+            return employee_response
         except (SQLAlchemyError) as error:
             raise error  #check if the error need to be more descriptive
     
@@ -52,6 +57,7 @@ class EmployeeService:
             if not employee:
                 raise EmployeeNotFound(f"employee with {id} not found")
             await self.repository.delete_employee(employee=employee)
+            self.employee_image_service.delete_employee_images(employee_id=employee.id)
         except (SQLAlchemyError) as error:
             raise error  
         except (Exception) as exception_error:

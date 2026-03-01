@@ -5,6 +5,7 @@ from database import db_dependency
 from sqlalchemy import select
 import uuid
 from ..service.employees import EmployeeService
+from ..service.employee_images import EmployeeImagesService
 from ..repository.employee import EmployeeRepository
 from ..exceptions import EmployeeNotFound
 from database import get_db
@@ -16,11 +17,14 @@ employee_router = APIRouter(prefix="/employee", tags=["employees"])
 def get_minio_client():
     return MinioStorageClient()
 
+def get_employee_image_service(object_storage_client: MinioStorageClient = Depends(get_minio_client)):
+    return EmployeeImagesService(minio_client=object_storage_client)
+
 async def get_employee_repository(db: AsyncSession = Depends(get_db)):
     return EmployeeRepository(db=db)
 
-async def get_employee_service(repo: EmployeeRepository = Depends(get_employee_repository), object_storage:MinioStorageClient = Depends(get_minio_client)):
-    return EmployeeService(repository=repo, object_storage=object_storage)
+async def get_employee_service(repo: EmployeeRepository = Depends(get_employee_repository), object_storage:MinioStorageClient = Depends(get_minio_client), employee_image_service: EmployeeImagesService=Depends(get_employee_image_service)):
+    return EmployeeService(repository=repo, object_storage=object_storage, employee_image_service=employee_image_service)
 
 # reads all employees info
 @employee_router.get("", response_model=list[EmployeeResponse])
