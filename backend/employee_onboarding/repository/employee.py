@@ -13,7 +13,7 @@ class EmployeeRepository:
     
     async def create_employee(self, employee: EmployeeCreate):
         try:
-            new_employee = Employee(first_name = employee.first_name, last_name= employee.last_name, role= employee.role)
+            new_employee = Employee(first_name = employee.first_name, last_name= employee.last_name, role= employee.role, embedding_status = "processing")
             self.db.add(new_employee)
             await self.db.commit()
             await self.db.refresh(new_employee)
