@@ -1,9 +1,10 @@
-from onboarding_interface import OnboardingInterface
+from .onboarding_interface import OnboardingInterface
 import socket
 import nmap
 import cv2
 import subprocess
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class NonOnvifOnboarding(OnboardingInterface):
     def __init__(self):
@@ -21,23 +22,36 @@ class NonOnvifOnboarding(OnboardingInterface):
             "/stream1",
             "/stream2",
             "/cam/realmonitor?channel=1&subtype=0"]
+    
+    def _try_rtsp_urls(self, ip, username, password, path):
+        url = f"rtsp://{username}:{password}@{ip}:554/{path}"
+        cap = cv2.VideoCapture(url)
+        if cap.isOpened():
+            ret, frame = cap.read()
+            if ret:
+                cap.release()
+                return True
+            cap.release()
+        return False
 
     def is_camera(self, ip, username, password):
-        for path in self.RTSP_PATHS:
-            url = f"rtsp://{username}:{password}@{ip}:554/{path}"
-            cap = cv2.VideoCapture(url)
-            if cap.isOpened():
-                ret, frame = cap.read()
-                if ret:
-                    cap.release()
+        with ThreadPoolExecutor(max_workers=len(self.RTSP_PATHS)) as executor:
+            futures= {
+                executor.submit(self._try_rtsp_urls, ip, username, password, path): path
+                for path in self.RTSP_PATHS
+            }
+            for future in as_completed(futures):
+                if future.result():
+                    for f in futures:
+                        f.cancel()
                     return True
-                cap.release()
-        return False    
+        return False
 
-    def get_camera_ip_addresses(self, username, password): # this function is verryyy slow, need to find a solution for that
+    def get_camera_ip_addresses(self, username, password):
         network_range = "192.168.1.0/24"
         nm = nmap.PortScanner()
-        nm.scan(hosts=network_range, ports='80,443,554,8080,8554', arguments='-sV -T4')
+        nm.scan(hosts=network_range, ports='80,443,554,8080,8554', arguments='-T5 --open')
+        candidate_hosts=[]
         for host in nm.all_hosts():
             if 'tcp' not in nm[host]:
                 continue
@@ -45,7 +59,15 @@ class NonOnvifOnboarding(OnboardingInterface):
             has_rtsp = 554 in ports or 8554 in ports
             has_http = 80 in ports or 8080 in ports
             if (has_rtsp or has_http) and self.is_camera(host, username=username, password=password):
-                self.camera_ips.append(host)
+                candidate_hosts.append(host)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures={
+                executor.submit(self.is_camera, host, username, password): host
+                for host in candidate_hosts
+            }
+            for future in as_completed(futures):
+                if future.result():
+                    self.camera_ips.append(futures[future])
         return self.camera_ips
 
     def discover_camera_mac_address(self, ip, username, password):
@@ -62,20 +84,20 @@ class NonOnvifOnboarding(OnboardingInterface):
             raise error
     
     def get_rtsp_url(self, ip, username, password):
-        try:
-            urls=[]
-            for path in self.RTSP_PATHS:
-                url = f"rtsp://{username}:{password}@{ip}:554/{path}"
-                cap = cv2.VideoCapture(url)
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    if ret:
-                        cap.release()
-                        urls.append(url)
-                    cap.release()
-            return urls
-        except Exception as error:
-            raise error
+        urls = []
+        def check_path(path):
+            url = f"rtsp://{username}:{password}@{ip}:554{path}"
+            cap = cv2.VideoCapture(url)
+            if cap.isOpened():
+                ret, frame = cap.read()
+                cap.release()
+                if ret:
+                    return url
+            return None
+        with ThreadPoolExecutor(max_workers=len(self.RTSP_PATHS)) as executor:
+            results = executor.map(check_path, self.RTSP_PATHS)
+            urls = [url for url in results if url]
+        return urls
 
     def get_camera_info(self, ip, username, password):
         try:
@@ -83,7 +105,7 @@ class NonOnvifOnboarding(OnboardingInterface):
             for ip in self.camera_ips:
                 ip_info={}
                 mac_address = self.discover_camera_mac_address(ip=ip, username=username, password=password)
-                rtsp_urls= self.get_rtsp_url(ip=ip, username=username, password=password)
+                rtsp_urls = self.get_rtsp_url(ip=ip, username=username, password=password)
                 ip_info["mac_address"]=mac_address
                 ip_info["rtsp_url"] =rtsp_urls
                 camera_info[ip]=ip_info

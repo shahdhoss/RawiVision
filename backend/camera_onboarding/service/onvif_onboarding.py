@@ -2,8 +2,9 @@ from wsdiscovery import WSDiscovery # for onvif-compaitable cameras
 import subprocess
 import re
 from urllib.parse import urlparse
-from onboarding_interface import OnboardingInterface
+from .onboarding_interface import OnboardingInterface
 import cv2
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class OnvifOnboarding(OnboardingInterface):
     def __init__(self):
@@ -30,16 +31,19 @@ class OnvifOnboarding(OnboardingInterface):
     def discover_cameras(self):
         wsd = WSDiscovery()
         wsd.start()
-        services = wsd.searchServices(timeout=10) 
-        for service in services:
-            types = service.getTypes()
-            if self.is_camera(types): 
-                xaddrs = service.getXAddrs()
-                for addr in xaddrs:
-                    parsed = urlparse(addr)
-                    ip = parsed.hostname
-                    self.camera_ips.append(ip)
-        wsd.stop()
+        try:
+            services = wsd.searchServices(timeout=10) 
+            for service in services:
+                types = service.getTypes()
+                if self.is_camera(types): 
+                    xaddrs = service.getXAddrs()
+                    for addr in xaddrs:
+                        parsed = urlparse(addr)
+                        ip = parsed.hostname
+                        self.camera_ips.append(ip)
+            wsd.stop()
+        except Exception as error:
+            raise error
     
     def discover_mac_address(self, ip):
         try:
@@ -61,15 +65,30 @@ class OnvifOnboarding(OnboardingInterface):
         except Exception as error:
             raise error
     
-    def get_rtsp_url(self, ip, username, password): # even if it is empty streams it is fine, so they could be added dynamically when the streams become alive. But i need to have a check before adding the video chunks to minio
-        rtsp_urls = []
-        for path in self.RTSP_PATHS:
-            url = f"rtsp://{username}:{password}@{ip}:554{path}" 
-            cap = cv2.VideoCapture(url)
-            if cap.isOpened():
-                ret, _ = cap.read()
-                if ret:
-                    rtsp_urls.append(url)
-                cap.release()
-        return rtsp_urls
+    def get_rtsp_url(self, ip, username, password):
+            urls = []
+            def check_path(path):
+                url = f"rtsp://{username}:{password}@{ip}:554{path}"
+                cap = cv2.VideoCapture(url)
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                    cap.release()
+                    if ret:
+                        return url
+                return None
+            with ThreadPoolExecutor(max_workers=len(self.RTSP_PATHS)) as executor:
+                results = executor.map(check_path, self.RTSP_PATHS)
+                urls = [url for url in results if url]
+            return urls
+    
+    def get_camera_info(self, ip, username, password, mac_address):
+        try:
+            camera_info={}
+            rtsp_urls = self.get_rtsp_url(ip=ip, username=username, password=password)
+            camera_info["mac_address"] = mac_address
+            camera_info["rtsp_urls"] = rtsp_urls
+            camera_info["ip"]=ip
+            return camera_info
+        except Exception as error:
+            raise error
 

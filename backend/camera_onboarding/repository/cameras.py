@@ -10,7 +10,7 @@ class CameraRepository:
     
     async def create_camera_instance(self, camera:CameraCreate):
         try:
-            new_camera_instance = Camera(room = camera.room, building = camera.building, mac_address = camera.mac_address)
+            new_camera_instance = Camera(room = camera.room, building = camera.building, mac_address = camera.mac_address, username= camera.username, password= camera.password)
             self.db.add(new_camera_instance)
             await self.db.flush()
             return new_camera_instance
