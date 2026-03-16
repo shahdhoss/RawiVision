@@ -98,17 +98,3 @@ class NonOnvifOnboarding(OnboardingInterface):
             results = executor.map(check_path, self.RTSP_PATHS)
             urls = [url for url in results if url]
         return urls
-
-    def get_camera_info(self, ip, username, password):
-        try:
-            camera_info={}
-            for ip in self.camera_ips:
-                ip_info={}
-                mac_address = self.discover_camera_mac_address(ip=ip, username=username, password=password)
-                rtsp_urls = self.get_rtsp_url(ip=ip, username=username, password=password)
-                ip_info["mac_address"]=mac_address
-                ip_info["rtsp_url"] =rtsp_urls
-                camera_info[ip]=ip_info
-            return camera_info
-        except Exception as error:
-            raise error

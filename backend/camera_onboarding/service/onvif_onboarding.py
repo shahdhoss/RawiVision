@@ -80,15 +80,4 @@ class OnvifOnboarding(OnboardingInterface):
                 results = executor.map(check_path, self.RTSP_PATHS)
                 urls = [url for url in results if url]
             return urls
-    
-    def get_camera_info(self, ip, username, password, mac_address):
-        try:
-            camera_info={}
-            rtsp_urls = self.get_rtsp_url(ip=ip, username=username, password=password)
-            camera_info["mac_address"] = mac_address
-            camera_info["rtsp_urls"] = rtsp_urls
-            camera_info["ip"]=ip
-            return camera_info
-        except Exception as error:
-            raise error
 

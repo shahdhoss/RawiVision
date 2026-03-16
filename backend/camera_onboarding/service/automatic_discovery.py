@@ -22,19 +22,20 @@ class AutomaticDiscovery():
         self.discovered_camera_ips.extend(onvif_ips)
         return self.discovered_camera_ips
     
-    async def get_saved_cameras_metadata(self):
+    async def get_saved_cameras_metadata(self): # sadly can't get the rtsp urls of cameras not onboardrd on the system due tonot hvaing their username and passwords
         try: 
             cameras_info: list[CameraMetadataResponse]=[]
             camera_ips = await self.discover_camera_ips()
-            print(camera_ips)
             db_cameras = await self.repo.get_all_cameras()
+            db_cameras_mac_addresses=[]
+            for camera in db_cameras:
+                db_cameras_mac_addresses.append(camera.mac_address)
             for ip in camera_ips:
                 mac_address = self.onvif_onboarding.discover_mac_address(ip)
-                for camera in db_cameras:
-                    if camera.mac_address == mac_address:
-                        info = self.onvif_onboarding.get_camera_info(ip=ip, username=camera.username, password=camera.password, mac_address=camera.mac_address)
-                        camera_info_instance = CameraMetadataResponse(room=camera.room, building=camera.building, username= camera.username, password= camera.password, rtsp_urls=info["rtsp_urls"] ,ip_address=ip, mac_address= camera.mac_address)
-                        cameras_info.append(camera_info_instance)
+                if mac_address in db_cameras_mac_addresses:
+                    rtsp_urls = self.onvif_onboarding.get_rtsp_url(ip=ip, username=camera.username, password=camera.password)
+                    camera_info_instance = CameraMetadataResponse(room=camera.room, building=camera.building, username= camera.username, password= camera.password, rtsp_urls=rtsp_urls ,ip_address=ip, mac_address= camera.mac_address)
+                    cameras_info.append(camera_info_instance)
             return cameras_info
         except Exception as error:
             raise error
