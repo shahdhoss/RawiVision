@@ -33,6 +33,14 @@ class CameraRepository:
         except Exception as error:
             raise error
     
+    async def get_camera_by_mac_address(self, mac_address:str):
+        try:
+            result = await self.db.execute(select(Camera).where(Camera.mac_address == mac_address))
+            camera = result.scalars().one_or_none()
+            return camera
+        except Exception as error:
+            raise error
+    
     async def delete_camera(self, camera:Camera):
         try:
             await self.db.delete(camera)

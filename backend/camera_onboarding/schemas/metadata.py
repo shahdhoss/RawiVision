@@ -9,5 +9,8 @@ class CameraMetadataBase(BaseModel):
     ip_address: str
     mac_address: str
 
+class CameraMetadataCreate(CameraMetadataBase):
+    pass
+
 class CameraMetadataResponse(CameraMetadataBase):
     pass
