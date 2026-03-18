@@ -27,13 +27,22 @@ class AutomaticDiscovery():
     
     def check_path(self, username, password, ip, path):
         url = f"rtsp://{username}:{password}@{ip}:554{path}"
-        cap = cv2.VideoCapture(url)
-        if cap.isOpened():
-            ret, frame = cap.read()
-            cap.release()
-            if ret:
-                return True
-        return False
+        cap = cv2.VideoCapture()
+        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+        cap.open(url, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            print(f"Failed to connect (IP may be down): {url}")
+            return False
+        ret, frame = cap.read()
+        cap.release()
+        if not ret or frame is None or frame.size == 0:
+            print(f"Stream unreachable or returned empty frame: {url}")
+            return False
+        if np.all(frame == 0):
+            print(f"Stream returned a blank frame (likely 404 or wrong path): {url}")
+            return False
+        return True
 
     async def check_saved_camera_metadata_validity(self, ip):
         camera_metadata = await self.metadata_service.get_camera_metadata_by_ip(ip=ip)
@@ -55,14 +64,19 @@ class AutomaticDiscovery():
 
     async def sync_camera_metadata(self):
         camera_ips = await self.discover_camera_ips()
+        print(camera_ips)
         cameras_metadata = await self.metadata_service.get_all_camera_metadata()
         saved_camera_metadata_ips = {camera.ip_address: camera for camera in cameras_metadata} 
+        for ip, camera in saved_camera_metadata_ips.items():
+            if not await self.check_saved_camera_metadata_validity(ip=camera.ip_address):
+                await self.metadata_service.delete_camera_metadata_by_ip(ip_address=camera.ip_address)
         for ip in camera_ips:
             if ip in saved_camera_metadata_ips:
                 if await self.check_saved_camera_metadata_validity(ip=ip):
                     continue
                 else:
                     await self.metadata_service.delete_camera_metadata_by_ip(ip_address=ip) 
+                    continue
             [mac_address, rtsp_urls] = await self.discover_mac_address_and_rtsp_url(ip_address=ip)
             if mac_address is None or rtsp_urls is None:  
                 continue
