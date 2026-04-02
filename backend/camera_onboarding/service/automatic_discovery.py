@@ -39,9 +39,6 @@ class AutomaticDiscovery():
         if not ret or frame is None or frame.size == 0:
             print(f"Stream unreachable or returned empty frame: {url}")
             return False
-        if np.all(frame == 0):
-            print(f"Stream returned a blank frame (likely 404 or wrong path): {url}")
-            return False
         return True
 
     async def check_saved_camera_metadata_validity(self, ip):
