@@ -21,7 +21,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 STAGE1_MODEL_ID = "Nikeytas/videomae-crime-detector-fixed-format"
 STAGE1_ANOMALY_IDX = 1
-STAGE1_THRESHOLD = 0.5
+STAGE1_THRESHOLD = 0.6
 
 STAGE3_MODEL_ID = "HuggingFaceTB/SmolVLM-Instruct"
 STAGE3_COOLDOWN = 5.0
@@ -30,7 +30,7 @@ STAGE3_NUM_BEAMS= 1
 
 STAGE4_MODEL_ID  = 0
 # -------------------------- for testing ---------------------------------
-VIDEO_SOURCE  = "videos/assault_video (small).mp4" 
+VIDEO_SOURCE  = "videos/NV_1000.mp4" 
 VIDEO_WINDOW  = 16
 FRAME_SIZE    = (224, 224)
 INFER_EVERY_N = 8
@@ -302,7 +302,7 @@ t_vlm = threading.Thread(target=vlm_worker, daemon=True)
 t_infer.start()
 t_vlm.start()
 
-cap = cv2.VideoCapture('videos/118956-716230948_small.mp4')
+cap = cv2.VideoCapture(VIDEO_SOURCE)
 if not cap.isOpened():
     raise RuntimeError(f"Could not open video: {VIDEO_SOURCE}")
 
