@@ -2,18 +2,24 @@ import cv2
 import os
 import pickle
 import numpy as np
-from mtcnn import MTCNN
+# from mtcnn import MTCNN
 from keras_facenet import FaceNet
 from celery import Celery, shared_task
 import httpx
 import uuid
+
+import torch
 from ..schemas.employee import EmployeeUpdate
+from ultralytics import YOLO
 from ..utils.minio_storage_client import MinioStorageClient
 
 BASE_URL = "http://localhost:8000"
 app = Celery('tasks', broker='amqp://guest:guest@localhost:5672//') # from the celery documentation: In production you’ll want to run the worker in the background as a daemon. To do this you need to use the tools provided by your platform, or something like supervisord (see Daemonization for more information).
 
-detector = MTCNN()
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+detector = YOLO("yolov12m-face.pt").to(device)
+
 embedder = FaceNet()
 
 def generate_embedding(images_bytes):
@@ -26,15 +32,21 @@ def generate_embedding(images_bytes):
             print(f"Warning: could not decode image {idx}, skipping.")
             continue
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # [1] MTCNN face detection
-        faces = detector.detect_faces(rgb_image)
-        if not faces:
+        # [1] YOLO face detection
+        faces = detector(rgb_image)
+        if len(faces[0].boxes) == 0:
             print(f"Warning: no face detected in image {idx}, skipping.")
             continue
-        x, y, w, h = faces[0]['box']
-        x, y = max(0, x), max(0, y)
-        x2, y2 = min(rgb_image.shape[1], x + w), min(rgb_image.shape[0], y + h)
-        face_crop = rgb_image[y:y2, x:x2]
+
+        box = faces[0].boxes.xyxy[0].cpu().numpy()
+        x1, y1, x2, y2 = map(int, box)
+
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(rgb_image.shape[1], x2)
+        y2 = min(rgb_image.shape[0], y2)
+        face_crop = rgb_image[y1:y2, x1:x2]
+        
         # [2] FaceNet embedding
         embedding = embedder.embeddings([face_crop])[0]
         embeddings.append(embedding)
