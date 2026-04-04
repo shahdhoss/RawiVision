@@ -365,7 +365,7 @@ t_vlm.start()
 setup_event_producer()
 
 
-cap = cv2.VideoCapture('videos/118956-716230948_small.mp4')
+cap = cv2.VideoCapture(VIDEO_SOURCE)
 if not cap.isOpened():
     raise RuntimeError(f"Could not open video: {VIDEO_SOURCE}")
 
