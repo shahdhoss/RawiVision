@@ -39,10 +39,10 @@ STAGE3_NUM_BEAMS= 1
 
 STAGE4_MODEL_ID  = 0
 # -------------------------- for testing ---------------------------------
-VIDEO_SOURCE  = "Anomaly Detection/videos/118956-716230948_small.mp4" 
-VIDEO_WINDOW = 16
+VIDEO_SOURCE  = "/videos/118956-716230948_small.mp4" 
+VIDEO_WINDOW  = 16
 FRAME_SIZE    = (224, 224)
-INFER_EVERY_N = 16
+INFER_EVERY_N = 8
 
 # -------------------------- Model loading -------------------------------
 
@@ -365,7 +365,7 @@ t_vlm.start()
 setup_event_producer()
 
 
-cap = cv2.VideoCapture(VIDEO_SOURCE)
+cap = cv2.VideoCapture('/videos/118956-716230948_small.mp4')
 if not cap.isOpened():
     raise RuntimeError(f"Could not open video: {VIDEO_SOURCE}")
 
