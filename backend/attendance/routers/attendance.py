@@ -24,9 +24,9 @@ async def get_all_attendance_records(service: AttendanceService= Depends(get_att
         raise error
 
 @attendance_router.get("/{id}", response_model=list[AttendanceResponse])
-async def get_attendance_record_by_employee_id(employee_id: UUID, service: AttendanceService= Depends(get_attendance_service)):
+async def get_attendance_record_by_employee_id(id: UUID, service: AttendanceService= Depends(get_attendance_service)):
     try:
-        attendance_records = await service.get_attendance_record_by_employee_id(employee_id=employee_id)
+        attendance_records = await service.get_attendance_record_by_employee_id(employee_id=id)
         return attendance_records
     except Exception as error:
         raise error

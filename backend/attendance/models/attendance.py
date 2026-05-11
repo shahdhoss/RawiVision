@@ -1,5 +1,5 @@
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import Date, DateTime
+from sqlalchemy import Date, DateTime, UniqueConstraint
 from database import Base
 from datetime import date, datetime
 from sqlalchemy.orm import Mapped, mapped_column
@@ -8,6 +8,7 @@ from sqlalchemy.sql import func
 
 class Attendance(Base):
     __tablename__ = "attendance"
+    __table_args__ = (UniqueConstraint('employee_id', 'day', name='uq_employee_day'),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4)
